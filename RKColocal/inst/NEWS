@@ -1,0 +1,4 @@
+0.0-9
+    o move Java source file to top-level java/ directory (cf. Writing R Extensions) and document in vignette
+0.0-8
+    o move vignette to vignettes/ folder

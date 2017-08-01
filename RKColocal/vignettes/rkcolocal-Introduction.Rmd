@@ -1,0 +1,282 @@
+---
+title: "Introduction to *“RKColocal”*"
+author: 
+- name: Shulei Wang
+  affiliation: Department of Statistics, University of Wisconsin-Madison; Morgridge Institute for Research
+- name: Ming Yuan
+  affiliation: Department of Statistics, University of Wisconsin-Madison; Morgridge Institute for Research
+date: "7-23-2017"
+abstract: >
+  `r Biocpkg("RKColocal")` provides baisc functions for dual-channel image input/output and colocalization analysis. RKColocal includes tools to display joint distribution of pixel intensities for colocalization analysis, evaluate the average degree of colocalization in a given region. 
+package: RKColocal
+output: 
+  BiocStyle::html_document2:
+    toc_float: true
+graphics: yes
+bibliography: RKColocal.bib
+vignette: >
+  %\VignetteIndexEntry{Introduction to R package RKColocal}
+  %\VignetteKeywords{colocalization, image processing, visualization}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignettePackage{rkcolocal}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, echo=FALSE}
+library(knitr)
+.dpi = 100
+set.seed(0)
+opts_chunk$set(comment=NA, fig.align="center", dpi=.dpi)
+knit_hooks$set(crop=NULL)
+.output = output()
+switch(.output,
+        html = opts_chunk$set(fig.retina=1),
+        latex = opts_chunk$set(out.width=".5\\textwidth")
+)
+
+.dev = switch(.output, html="svg", latex="pdf")
+```
+
+# Getting Started
+
+The R package `r Biocpkg("RKColocal")` can be downloaded from [Bioconductor](http://bioconductor.org) website, installed and loaded by entering:
+
+```{r installation, eval=FALSE}
+source("http://bioconductor.org/biocLite.R")
+biocLite("RKColocal")
+```
+Then, the library can be loaded by
+```{r library, message=FALSE, warning=FALSE, results='hide',error=FALSE}
+library("RKColocal")
+```
+
+Some parts of the R package need to call external Java class. Therefore, it's recommended to install R package `r CRANpkg("rJava")` manually before installing `r Biocpkg("RKColocal")` since sometimes extra configuration is needed, (some common errors can be found in [help1](https://stackoverflow.com/questions/30738974/rjava-load-error-in-rstudio-r-after-upgrading-to-osx-yosemite) and [help2](https://www.rforge.net/rJava/)).
+
+<p>![](structure.png){width=512 style="padding: 0px; margin: auto;"}</p>
+
+There are three main functional modules in `r Biocpkg("RKColocal")`: 
+
+* **Dual-Channel Images I/O** provides basic functions to read, display and write dual channel images; 
+
+* there are functions to plot different types of the joint distribution of pixel intensities in **Colocalization Analysis Plot**; 
+
+* the functions in **Region based Colocalization Analysis** assess the average degree of colocalization in a given region of interest via evaluating some statistical quantity.
+
+# Dual-Channel Images I/O
+
+`r Biocpkg("RKColocal")` supports the basic functions to read, display and write images via adopting the same input/ouput system in `r Biocpkg("EBImage")`. The dual channel images can be read by function `readImage` in `r Biocpkg("EBImage")` and the two corresponding channels can be extracted from it. One typical example of reading dual-channel images is to load two channels as `X` and `Y` from sample images distributed with the package.
+
+```{r read image}
+f = system.file("images", "sample.jpeg", package = "RKColocal")
+img = readImage(f)
+X = imageData(img)[,,1]
+Y = imageData(img)[,,2]
+```
+
+`readImage` currently supports three forms of images: `jpeg`, `png` and `tiff` and see the details in `r Biocpkg("EBImage")`. The two channels `X` and `Y` can also be seen as two matrixs and their dimensions can be accessed using the `dim` just like for regular matrix.
+
+```{r image dimension}
+dim(X)
+```
+
+For convenience of visualization, the two channels are usually represented by green and red color. These two channels colored by green and red can be visualized by the function `DualImageVisual`. 
+
+```{r display split, fig.width=dim(img)[1L]/.dpi*2, fig.height=dim(img)[2L]/.dpi, dpi=.dpi/4, fig.align="center"}
+DualImageVisual(X, Y, isSplit = TRUE)
+```
+
+The most straight-forward way to assess the colocalization is to overlay two channels into one image. If we see the yellow color in the composite image, then the colocalization occurs between two channels. The composite image can also be visualized by the function `DualImageVisual` with the argument `isSplit=FALSE`. 
+
+```{r display, fig.width=dim(img)[1L]/.dpi, fig.height=dim(img)[2L]/.dpi, dpi=.dpi/4,fig.align="center"}
+DualImageVisual(X, Y, isSplit = FALSE)
+```
+
+The colocalization analysis is sometimes restricted into some region of interest (ROI). In `r Biocpkg("RKColocal")`, the region of interest is represented by a boolean matrix with the same dimensions of two channels, where `TRUE` means pixel is included in ROI. We load a ROI for the image above from a sample ROI distributed with the package and visualize it via function `display` in `r Biocpkg("EBImage")`.
+
+```{r display mask, fig.width=dim(img)[1L]/.dpi, fig.height=dim(img)[2L]/.dpi, dpi=.dpi/4,fig.align="center"}
+data(ROI)
+display(ROI)
+```
+
+Function `DualImageVisual` supports the dual-channel image is displayed only in ROI with argument `mask=ROI`.
+
+```{r display mask in image, fig.width=dim(img)[1L]/.dpi, fig.height=dim(img)[2L]/.dpi, dpi=.dpi/4,fig.align="center"}
+DualImageVisual(X, Y, isSplit = FALSE, mask = ROI)
+```
+
+Images can be saved to files using the `DualImageSave` function. The same with `DualImageVisual`, two channels are saved in two seperate images with `isSplit=TRUE` and only pixels within ROI are saved when `mask=ROI`.
+
+```{r writeImage, eval=FALSE}
+DualImageSave(X, Y, name = "sample.png", isSplit = TRUE, mask = ROI)
+```
+
+The dual-channel images can be saved as `jpeg`, `png` or `tiff` and see more details in introduction of function `writeImage` in `r Biocpkg("EBImage")`.
+
+# Colocalization Analysis Plot
+
+Besides overlaying two channels, joint distribution of pixel intensitiy between two channels is another way to inspect colocalization visually. In `r Biocpkg("RKColocal")`, function `colocalplot` supports two types of colocalization analysis plot: scatter plot [see, e.g. @bolte2006guided;@comeau2006guide;@dunn2011] and Li's plot [see, e.g. @Li04].
+
+- **Scatter Plot**: Scatter plot is a useful graphical tool to display joint distribution of pixel intensities in dual-channel images, where the pixel intensity of green channel `X` is plotted against the intensity of red channel `Y`. The scatter plot for dual-channel images can be displayed via `colocalplot` with argument `method = 'scatter'`. 
+```{r scatter plot, fig.width=dim(img)[1L]/.dpi/2, fig.height=dim(img)[2L]/.dpi/2, out.width='55%', dpi=.dpi,fig.align="center"}
+colocalplot(X, Y, method = 'scatter')
+```
+The scatter plot can be restricted into pre-defined ROI with argument `mask = ROI`.
+
+- **Li's Plot**: Different from scatter plot, Li's plot provides two seperate plots instead of one. The common $x$ axis is $(X_i-\bar{X})(Y_i-\bar{Y})$ in both plots and the $y$ axes in two plots are $X_i$ and $Y_i$, respectively. The Li's plot in the region of interest can be shown via  `colocalplot` with arguments `method = 'li'` and `mask = ROI`.
+```{r li plot, fig.width=dim(img)[1L]/.dpi*2/2, fig.height=dim(img)[2L]/.dpi/2, out.width='200%', dpi=.dpi,fig.align="center"}
+colocalplot(X, Y, mask = ROI, method = 'li')
+```
+
+# Region based Colocalization Analysis
+
+The most common used colocalization analysis method is to evaluate a statistical quantity for colocalization/correlation in a given region (region of interest or the whole image). In `r Biocpkg("RKColocal")`, this process is implemented by function `colocalroi`. In `colocalroi`, six different colocalization measures are implemented: *Pearson correlation coefficient*, *Manders' colocalization coefficients*, *Kendall tau correlation coefficient*, *Spearman's rank correlation coefficient*, *intensity correlation quotient* and *maximum truncated Kendall tau correlation coefficient*. These methods can be chosen via argument `method`.
+
+## Classical Colocalization Measure
+
+We introduce the first five classical colocalization measures in this section.
+
+- **Pearson correlation coefficient** 
+
+Pearson correlation coefficient is a very popular statistics for correlation, measuring the degree of linear relationship between two variables. It is first introduced to colocalization analysis by Manders [see @manders1992dynamics]. Mathematically, it can be expressed as
+\[
+r={\sum_{i=1}^n(X_i-\bar{X})(Y_i-\bar{Y}) \over\sqrt{\sum_{i=1}^n(X_i-\bar{X})^2\sum_{i=1}^n(Y_i-\bar{Y})^2}}
+\]
+where $X_i$ and $Y_i$ are the pixel intensity of green and red channels at pixel $i$. Here, $\bar{X}$ and $\bar{Y}$ are the mean of pixel intensities. $r$ can be calculated via function `colocalroi` with argument `method = 'pearson'`.
+
+```{r pearson index}
+colocalroi(X, Y, method = 'pearson')
+```
+
+The colocalization analysis can also restrict into the region of interest by setting argument `mask = ROI`.
+
+```{r pearson index ROI}
+colocalroi(X, Y, mask = ROI, method = 'pearson')
+```
+
+- **Manders colocalization coefficients**
+
+Another popular colocalization measure is Manders colocalization coefficients, introduced by @manders1993measurement. Instead of one single measure, there are two components in Manders colocalization coefficients, i.e. $M_1$ and $M_2$. They can be written as
+\[
+M_1={\sum_{i=1}^n X_i\mathbf{I}(Y_i>\alpha_Y)\over\sum_{i=1}^n X_i}\quad {\rm and}\quad M_2={\sum_{i=1}^n Y_i\mathbf{I}(X_i>\alpha_X)\over\sum_{i=1}^n Y_i}
+\]
+where $\alpha_X$ and $\alpha_Y$ are the thresholds for two channels and $\mathbf{I}(\cdot)$ is an indicator function. These coefficients $M_1$ and $M_2$ measure fractions of signal in one channel that overlap with the other. Different from Pearson's correlation coefficient, Manders' colocalization coefficients measure the degree of colocalization manifested in a distinct way. It measures co-occurence and is most useful if simple spatial overlap between the two probes is expected. $M_1$ and $M_2$ can be calculated by setting `method = 'mandersM1'` or `method = 'mandersM2'`.
+```{r manders index1}
+colocalroi(X, Y, method = 'mandersM1')
+```
+
+```{r manders index2}
+colocalroi(X, Y, method = 'mandersM2')
+```
+Thresholds $\alpha_X$ and $\alpha_Y$ can be input mannually via arguments `Thresholds` or can be set as Otsu's thresholds when `Thresholds=NULL`.
+
+- **Spearman's rank correlation coefficient**
+
+Spearman's rank correlation coefficient can be seen as a robust version of Pearson correlation coefficient, introduced into colocalization analysis by @French08 and @Adler08. Compared with Pearson correlation coefficient, Spearman's rank correlation coefficient is able to capture a wider range of assoiations. It is Pearson correlation coefficient between rank $R_i$ and $T_i$ after transforming raw data $X_i$ and $Y_i$ to corresponding rank $R_i$ and $T_i$, i.e.
+\[
+S={\sum_{i=1}^n(R_i-\bar{R})(T_i-\bar{T}) \over\sqrt{\sum_{i=1}^n(R_i-\bar{R})^2\sum_{i=1}^n(T_i-\bar{T})^2}}.
+\]
+$S$ can be calculated by function `colocalroi` with argument `method = 'spearman'`.
+
+```{r spearman index}
+colocalroi(X, Y, method = 'spearman')
+```
+
+- **Kendall tau correlation coefficient**
+
+Similar with Spearman's rank correlation coefficient, Kendall tau correlation coefficient is another popular rank correlation coefficient and is able to capture a wider range of associations beyond linear relationship. It is expressed as
+\[
+\tau={2\over n(n-1)}\sum_{1\le i<j\le n}{\rm sign}(X_i-X_j){\rm sign}(Y_i-Y_j),
+\]
+where ${\rm sign}(\cdot)$ is a function returning sign of input. $\tau$ can be calculated via function `colocalroi` with argument `method = 'kendall'`.
+
+```{r kendall index}
+colocalroi(X, Y, mask = ROI, method = 'kendall')
+```
+
+
+- **Intensity correlation quotient**
+
+With the same idea in Li's plot, @Li04 proposes a new statistics called intensity correlation quotient. It is basically ratio of pixels where $(X_i-\bar{X})(Y_i-\bar{Y})>0$. The idea is similar with rank correlation coefficient, since only sign information is extracted. It can be expressed as
+\[
+Q={\sum_{i=1}^n \mathbf{I}((X_i-\bar{X})(Y_i-\bar{Y})>0) \over n}-{1\over 2}
+\]
+$Q$ can be calculated via function `colocalroi` with argument `method = 'icq'`.
+```{r icq index}
+colocalroi(X, Y, method = 'icq')
+```
+
+## Robust Colocalization Measure
+
+All colocalization measures above overlook an important fact that a dark background with positive offset may occupy a substantial area of the image. To overcome this, @wang2017 proposes to evaluate Kendall tau only on the subset of pixels where both channels are sufficiently bright, leading to truncated Kendall tau correlation coefficient
+\[
+\tau(t_X,t_Y)={1\over n_{t_X,t_Y}(n_{t_X,t_Y}-1)}\sum_{i,j\in\mathcal{K}(t_X,t_Y):i\ne j}{\rm sign}(X_i-X_j){\rm sign}(Y_i-Y_j),
+\]
+where 
+\[
+\mathcal{K}(t_X,t_Y)=\{i:X_i>t_X,Y_i>t_Y\}\quad{\rm and}\quad n_{t_X,t_Y}=|\mathcal{K}(t_X,t_Y)|,
+\]
+for two pre-specified thresholds $t_X$ and $t_Y$.
+
+In practice, we do not know at which level $t_X$ and $t_Y$ colocalization may occur and determining the background is a complex process and very susceptible to misspecification. To over come this problem, @wang2017 proposes to instead the maximum of normalized $\tau(t_X,t_Y)$ for all possible $t_X$s and $t_Y$s. Therefore, maximum truncated Kendall tau correlation coefficient (MTKT) can be expressed as
+\[
+\tau^\ast=\max_{t_X\ge \beta_X,t_Y\ge \beta_Y} \left\{\tau(t_X,t_Y)\cdot\sqrt{9n_{t_X,t_Y}(n_{t_X,t_Y}-1)\over 2(2n_{t_X,t_Y}+5) }\right\},
+\]
+where $\beta_X$ and $\beta_Y$ are two lower bounds for possible thresholds.
+
+Obviously, it is time consuming to evaluate $\tau(t_X,t_Y)$ for all poosible thresholds $t_X$ and $t_Y$ in practice. @wang2017 proposes an approximationed version for $\tau^\ast$
+\[
+\tau^\ast_{\rm app}=\max_{t_X=X_{(j)},t_Y=Y_{(k)}:j,k\in\mathcal{R}_n} \left\{\tau(t_X,t_Y)\cdot\sqrt{9n_{t_X,t_Y}(n_{t_X,t_Y}-1)\over 2(2n_{t_X,t_Y}+5) }\right\},
+\]
+where $\mathcal{R}_n$ is 
+\[
+\mathcal{R}_n=\left\{s:s=\left\lfloor n-\left(1+{1\over \log\log n}\right)^j \right\rfloor, j=1,\ldots, X_{(s)}\ge \beta_X\ {\rm or}\ Y_{(s)}\ge \beta_Y\right\}.
+\]
+$\tau^\ast_{\rm app}$ can be calculated via function `colocalroi` with argument `method = 'trunkendall'`.
+```{r trunkendalln index}
+colocalroi(X, Y, method = 'trunkendall')
+```
+Lower bound of thresholds $\beta_X$ and $\beta_Y$ can be input mannually via arguments `Thresholds` or can be set as Otsu's thresholds when `Thresholds=NULL`.
+```{r trunkendalln index thresholds, eval=FALSE}
+colocalroi(X, Y, Thresholds=c(0.5,0.5), method = 'trunkendall')
+```
+
+## Statistical Test on Colocalization 
+
+To interpret the values of different colocalization measures above, we formulate the region based colocalization analysis as a hypothesis testing problem
+
+\[
+H_0:{\rm no\ colocalization}\quad {\rm v.s.}\quad H_1: {\rm colocalization\ happens}
+\]
+
+To assess statistical significance ($p$-value) under hypothesis above, `r Biocpkg("RKColocal")` adopts permutation test to calculate $p$-value via function `colocalroitest`. With the same arguments in `colocalroi`, `method` can be set as one of six colocalization measures above and `mask` is designed for region of interest. The `Thresholds` can be manually input when `method` is `mandersM1`, `mandersM2` or `trunkendall`. A typical example is to apply permutation test on sample dual-channel images.
+
+```{r pearson test}
+Testresult <- colocalroitest(X, Y, mask = ROI, method = 'pearson')
+Testresult
+```
+
+The output of `colocalroitest` is an object of class `colocalroitest`. There are three parts in the class of `colocalroitest`: **Index_Value** is the value of colocalization measure without permutation; **Null_Distribution** is the collection of values of colocalization measure in each permutation; **P_value** is the approximated $p$-value calculated from permutation test. The class `colocalroitest` can also be displayed as histogram via function `plot`. The `Testresult` is plot via `plot`.
+
+```{r pearson test plot, fig.width=dim(img)[1L]/.dpi/1.2, fig.height=dim(img)[2L]/.dpi/2.5/1.2, out.width='80%', dpi=.dpi}
+plot(Testresult)
+```
+
+The default times of permutation in `colocalroitest` is 100 and it can also be reset via arguments `times`. For exaample, the permutation time can be set as 1000.
+
+```{r pearson test times, eval=FALSE}
+colocalroitest(X, Y, mask = ROI, times = 1000, method = 'pearson')
+```
+
+The potential hurdle of permutation test is the computation cost. To overcome this, `colocalroitest` can conduct permutation test in a parallel computing fashion via R package `r CRANpkg("doParallel")`. Parallel computing can be active with arguments `is.parallel=TRUE` and the number of core can be set via `numcore`. In the following example, the number of core for parallel computing is 2.
+
+```{r pearson test parallel, eval=FALSE}
+colocalroitest(X, Y, mask = ROI, is.parallel = TRUE, numcore = 2, method = 'pearson')
+```
+
+Another practical challenge is the potential dependence among $X_i$s and $Y_i$s. To overcome this problem, `colocalroitest` has options to conduct block based permutation test, proposed by @costes2004automatic. Block based permutation test permutes the block by blcok on pre-defined block instead of pixel by pixel. The block based permutation test is execute only when `mask=NULL` and block size `bsize` is set as some integer larger than 1. For instance, we can permute the $32\times 32$ block in the sample dual-channel image.
+
+```{r manders test, eval=FALSE}
+colocalroitest(X, Y, bsize = 32, method = 'mandersM2')
+```
+
+# References

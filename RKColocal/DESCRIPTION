@@ -1,0 +1,24 @@
+Package: RKColocal
+Title: Colocalization Analysis in Dual-Channel Image
+Version: 0.0.0.9000
+Date: 2017-07-23
+Author: Shulei Wang and Ming Yuan
+Maintainer: Shulei Wang <shulei@stat.wisc.edu>
+Description: This package provides baisc functions for dual-channel image input/output and colocalization analysis. It also includes tools to display joint distribution of pixel intensities for colocalization analysis, evaluate the average degree of colocalization in a given region. 
+Depends:
+    R (>= 3.3.1),
+    pcaPP,
+    doParallel,
+    stats,
+    EBImage,
+    abind,
+    grid,
+    ggplot2,
+    reshape2
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.0.1.9000
+SystemRequirements: Java
+Suggests: knitr, BiocStyle, rmarkdown
+VignetteBuilder: knitr
